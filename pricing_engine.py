@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from scipy.stats import norm
 
 # ============================================
-# Modèles de pricing
+# Fonctions de pricing
 # ============================================
 
 def black_scholes_price(S, K, T, r, sigma, option_type='call', q=0.0):
@@ -20,21 +20,25 @@ def black_scholes_price(S, K, T, r, sigma, option_type='call', q=0.0):
         return K * np.exp(-r * T) * norm.cdf(-d2) - S * np.exp(-q * T) * norm.cdf(-d1)
 
 def black_scholes_greeks(S, K, T, r, sigma, option_type='call', q=0.0):
-    """Calcul des 5 Grecs."""
+    """Calcul des 5 Grecs (Delta, Gamma, Vega, Theta, Rho)."""
     if T <= 0:
         return {'delta': 0.0, 'gamma': 0.0, 'vega': 0.0, 'theta': 0.0, 'rho': 0.0}
     d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
     nd1 = norm.pdf(d1)
+
     # Delta
     if option_type == 'call':
         delta = np.exp(-q * T) * norm.cdf(d1)
     else:
         delta = np.exp(-q * T) * (norm.cdf(d1) - 1)
+
     # Gamma (identique call/put)
     gamma = nd1 * np.exp(-q * T) / (S * sigma * np.sqrt(T))
+
     # Vega (par variation de 1% de vol)
     vega = S * np.exp(-q * T) * nd1 * np.sqrt(T) / 100
+
     # Theta (par jour)
     if option_type == 'call':
         theta = (- (S * np.exp(-q * T) * nd1 * sigma) / (2 * np.sqrt(T))
@@ -44,11 +48,13 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type='call', q=0.0):
         theta = (- (S * np.exp(-q * T) * nd1 * sigma) / (2 * np.sqrt(T))
                  + r * K * np.exp(-r * T) * norm.cdf(-d2)
                  - q * S * np.exp(-q * T) * norm.cdf(-d1)) / 365
+
     # Rho (par 1% de taux)
     if option_type == 'call':
         rho = K * T * np.exp(-r * T) * norm.cdf(d2) / 100
     else:
         rho = -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
+
     return {'delta': delta, 'gamma': gamma, 'vega': vega, 'theta': theta, 'rho': rho}
 
 # ============================================
@@ -75,17 +81,18 @@ greeks = black_scholes_greeks(S, K, T, r, sigma, option_type, q)
 intrinsic = max(S - K, 0) if option_type == 'call' else max(K - S, 0)
 time_value = price - intrinsic
 
-# Affichage des résultats
+# Affichage des indicateurs
 col1, col2, col3 = st.columns(3)
 col1.metric("Prix théorique", f"{price:.4f}")
 col2.metric("Valeur intrinsèque", f"{intrinsic:.4f}")
 col3.metric("Valeur temps", f"{time_value:.4f}")
 
+# Affichage des Grecs
 st.subheader("Grecs")
 greeks_df = pd.DataFrame.from_dict(greeks, orient='index', columns=['Valeur'])
 st.dataframe(greeks_df.style.format("{:.4f}"))
 
-# Graphique Prix vs Spot
+# Graphique : Prix vs Spot
 st.subheader("Sensibilité au spot")
 spots = np.linspace(0.5 * S, 1.5 * S, 100)
 prices_spot = [black_scholes_price(s, K, T, r, sigma, option_type, q) for s in spots]
@@ -95,7 +102,7 @@ fig1.add_vline(x=S, line_dash="dash", line_color="red", annotation_text="Spot ac
 fig1.update_layout(xaxis_title="Spot", yaxis_title="Prix de l'option")
 st.plotly_chart(fig1, use_container_width=True)
 
-# Graphique des Grecs en fonction du spot
+# Graphique : Grecs vs Spot
 st.subheader("Évolution des Grecs avec le spot")
 greeks_names = ['delta', 'gamma', 'vega', 'theta', 'rho']
 greeks_values = []
